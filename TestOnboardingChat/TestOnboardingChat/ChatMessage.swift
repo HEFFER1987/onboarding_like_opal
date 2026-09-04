@@ -11,6 +11,7 @@ struct ChatMessage: Identifiable, Equatable {
     let text: String
     var isTypingComplete: Bool
     var typingSpeed: Duration
+    var typingStartDelay: Duration
 
     enum Role: Equatable {
         case bot
@@ -22,20 +23,22 @@ struct ChatMessage: Identifiable, Equatable {
         role: Role,
         text: String,
         isTypingComplete: Bool = true,
-        typingSpeed: Duration = .milliseconds(35)
+        typingSpeed: Duration = .milliseconds(35),
+        typingStartDelay: Duration = .zero
     ) {
         self.id = id
         self.role = role
         self.text = text
         self.isTypingComplete = isTypingComplete
         self.typingSpeed = typingSpeed
+        self.typingStartDelay = typingStartDelay
     }
 }
 
 enum ChatDepthStyle {
     static let userColor = Color(red: 0.45, green: 0.82, blue: 0.72)
     static let botActiveColor = Color.white
-    static let botInactiveColor = Color.white.opacity(0.35)
+    static let botInactiveColor = Color.white.opacity(0.6)
 
     static let blurStepPercent: CGFloat = 2.5
     static let maxBlurPercent: CGFloat = 100
@@ -87,6 +90,7 @@ struct ChatMessageRow: View {
                 TypewriterText(
                     fullText: message.text,
                     speed: message.typingSpeed,
+                    startDelay: message.typingStartDelay,
                     color: ChatDepthStyle.botActiveColor,
                     onComplete: onTypingComplete,
                     onUpdate: onTypingUpdate

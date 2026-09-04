@@ -22,18 +22,27 @@ struct OnboardingView: View {
     @State private var inputText = ""
     @State private var inputStep: InputStep = .none
     @State private var keyboardHeight: CGFloat = 0
+    @State private var inputSectionHeight: CGFloat = 156
 
     @FocusState private var isFieldFocused: Bool
 
     private let followUpQuestions = OnboardingQuestion.followUp
     private let chatAnimation = Animation.easeInOut(duration: 0.55)
+    private let botTypingStartDelay: Duration = .milliseconds(650)
+    private let userMessageSettleDuration: Duration = .milliseconds(550)
+
+    @State private var pendingUserAnswerTask: Task<Void, Never>?
 
     private var trimmedInput: String {
         inputText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var isBotTyping: Bool {
+        messages.contains { $0.role == .bot && !$0.isTypingComplete }
+    }
+
     private var canSubmit: Bool {
-        !trimmedInput.isEmpty
+        !trimmedInput.isEmpty && !isBotTyping && inputStep != .none
     }
 
     private var submitTitle: String {
@@ -72,7 +81,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.black.ignoresSafeArea(edges: [.top, .leading, .trailing])
 
             VStack(spacing: 0) {
                 conversationArea
@@ -83,6 +92,15 @@ struct OnboardingView: View {
                     .padding(.top, 20)
                     .padding(.bottom, 16)
                     .background(Color.black)
+                    .background {
+                        GeometryReader { inputGeometry in
+                            Color.clear
+                                .preference(
+                                    key: InputSectionHeightPreferenceKey.self,
+                                    value: inputGeometry.size.height
+                                )
+                        }
+                    }
             }
 
             VStack {
@@ -103,13 +121,26 @@ struct OnboardingView: View {
                 Spacer()
             }
         }
+        .onPreferenceChange(InputSectionHeightPreferenceKey.self) { height in
+            guard height > 0 else { return }
+            inputSectionHeight = height
+        }
         .onAppear(perform: startConversation)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
             guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
             let screenHeight = UIScreen.main.bounds.height
             let nextHeight = max(0, screenHeight - frame.minY)
 
-            withAnimation(.easeOut(duration: 0.25)) {
+            // iOS 18 can emit a transient keyboard-dismiss frame while the field stays focused.
+            if nextHeight == 0 && isFieldFocused {
+                return
+            }
+
+            if #available(iOS 26, *) {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    keyboardHeight = nextHeight
+                }
+            } else {
                 keyboardHeight = nextHeight
             }
         }
@@ -117,9 +148,12 @@ struct OnboardingView: View {
 
     private var conversationArea: some View {
         GeometryReader { geometry in
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 14) {
+            let visibleHeight = visibleConversationHeight(geometry.size.height)
+
+            VStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 28) {
                         ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                             ChatMessageRow(
                                 message: message,
@@ -131,7 +165,7 @@ struct OnboardingView: View {
                                 onTypingUpdate: {
                                     scrollToActiveContent(
                                         proxy: proxy,
-                                        viewportHeight: geometry.size.height,
+                                        measuredHeight: geometry.size.height,
                                         viewportWidth: geometry.size.width,
                                         animated: false
                                     )
@@ -145,32 +179,25 @@ struct OnboardingView: View {
                             .frame(height: 1)
                             .id(ConversationScrollTarget.bottom)
                     }
-                    .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .bottom)
+                    .frame(maxWidth: .infinity, minHeight: visibleHeight, alignment: .bottom)
                     .padding(.horizontal, 32)
                     .padding(.vertical, 8)
                 }
+                .frame(height: visibleHeight, alignment: .top)
                 .scrollDisabled(true)
                 .scrollBounceBehavior(.basedOnSize)
-                .onChange(of: geometry.size.height) { _, _ in
+                .onChange(of: geometry.size.height) { _, newHeight in
                     guard isFieldFocused || keyboardHeight > 0 else { return }
                     scrollToActiveContent(
                         proxy: proxy,
-                        viewportHeight: geometry.size.height,
+                        measuredHeight: newHeight,
                         viewportWidth: geometry.size.width
                     )
                 }
                 .onChange(of: messages.count) { _, _ in
                     scrollToActiveContent(
                         proxy: proxy,
-                        viewportHeight: geometry.size.height,
-                        viewportWidth: geometry.size.width
-                    )
-                }
-                .onChange(of: isFieldFocused) { _, focused in
-                    guard focused else { return }
-                    scrollToActiveContent(
-                        proxy: proxy,
-                        viewportHeight: geometry.size.height,
+                        measuredHeight: geometry.size.height,
                         viewportWidth: geometry.size.width
                     )
                 }
@@ -178,20 +205,15 @@ struct OnboardingView: View {
                     guard isFieldFocused || keyboardHeight > 0 else { return }
                     scrollToActiveContent(
                         proxy: proxy,
-                        viewportHeight: geometry.size.height,
+                        measuredHeight: geometry.size.height,
                         viewportWidth: geometry.size.width
                     )
                 }
-                .onChange(of: activeBotMessageID) { _, _ in
-                    scrollToActiveContent(
-                        proxy: proxy,
-                        viewportHeight: geometry.size.height,
-                        viewportWidth: geometry.size.width
-                    )
                 }
+
+                Spacer(minLength: 0)
             }
         }
-        .frame(maxHeight: .infinity)
     }
 
     private var inputSection: some View {
@@ -222,11 +244,13 @@ struct OnboardingView: View {
 
     private func scrollToActiveContent(
         proxy: ScrollViewProxy,
-        viewportHeight: CGFloat,
+        measuredHeight: CGFloat,
         viewportWidth: CGFloat,
         animated: Bool = true
     ) {
         DispatchQueue.main.async {
+            let viewportHeight = visibleConversationHeight(measuredHeight)
+
             let scroll = {
                 let targetMessage = activeBotMessage ?? messages.last
                 let anchor: UnitPoint
@@ -264,6 +288,19 @@ struct OnboardingView: View {
         return messages.first(where: { $0.id == activeBotMessageID })
     }
 
+    private func visibleConversationHeight(_ measuredHeight: CGFloat) -> CGFloat {
+        if #available(iOS 26, *) { return measuredHeight }
+        guard keyboardHeight > 0, isFieldFocused else { return measuredHeight }
+
+        let screenHeight = UIScreen.main.bounds.height
+        let topInset: CGFloat = 72
+        let maxHeight = max(
+            120,
+            screenHeight - keyboardHeight - inputSectionHeight - topInset
+        )
+        return min(measuredHeight, maxHeight)
+    }
+
     private func scrollAnchor(
         for text: String,
         viewportHeight: CGFloat,
@@ -295,6 +332,8 @@ struct OnboardingView: View {
     }
 
     private func resetConversation() {
+        pendingUserAnswerTask?.cancel()
+        pendingUserAnswerTask = nil
         isFieldFocused = false
         typingCompletions.removeAll()
         inputText = ""
@@ -308,11 +347,16 @@ struct OnboardingView: View {
         speed: Duration = .milliseconds(35),
         onComplete: @escaping () -> Void
     ) {
+        let typingStartDelay: Duration = messages.contains(where: { $0.role == .bot })
+            ? botTypingStartDelay
+            : .zero
+
         let message = ChatMessage(
             role: .bot,
             text: text,
             isTypingComplete: false,
-            typingSpeed: speed
+            typingSpeed: speed,
+            typingStartDelay: typingStartDelay
         )
         typingCompletions[message.id] = onComplete
 
@@ -333,6 +377,22 @@ struct OnboardingView: View {
         messages.append(ChatMessage(role: .user, text: text))
     }
 
+    private func appendUserMessageThen(_ text: String, action: @escaping () -> Void) {
+        pendingUserAnswerTask?.cancel()
+
+        withAnimation(chatAnimation) {
+            appendUserMessage(text)
+        }
+        inputText = ""
+
+        pendingUserAnswerTask = Task { @MainActor in
+            try? await Task.sleep(for: userMessageSettleDuration)
+            guard !Task.isCancelled else { return }
+            action()
+            pendingUserAnswerTask = nil
+        }
+    }
+
     private func submitAnswer() {
         guard canSubmit else { return }
 
@@ -341,29 +401,23 @@ struct OnboardingView: View {
         switch inputStep {
         case .name:
             let name = trimmedInput
-            withAnimation(chatAnimation) {
-                appendUserMessage("Hi, \(name).")
-            }
-            inputText = ""
-
-            startBotTyping(
-                "I'm going to ask you a few questions. No need to overthink it. Then I'll build your setup"
-            ) {
-                askFollowUpQuestion(at: 0)
+            appendUserMessageThen("Hi, \(name).") {
+                startBotTyping(
+                    "I'm going to ask you a few questions. No need to overthink it. Then I'll build your setup"
+                ) {
+                    askFollowUpQuestion(at: 0)
+                }
             }
 
         case .followUp(let index):
-            withAnimation(chatAnimation) {
-                appendUserMessage(trimmedInput)
-            }
-            inputText = ""
-
-            let nextIndex = index + 1
-            if nextIndex < followUpQuestions.count {
-                askFollowUpQuestion(at: nextIndex)
-            } else {
-                inputStep = .none
-                finishConversation(userName: messages.first(where: { $0.role == .user })?.text ?? trimmedInput)
+            appendUserMessageThen(trimmedInput) {
+                let nextIndex = index + 1
+                if nextIndex < followUpQuestions.count {
+                    askFollowUpQuestion(at: nextIndex)
+                } else {
+                    inputStep = .none
+                    finishConversation(userName: messages.first(where: { $0.role == .user })?.text ?? trimmedInput)
+                }
             }
 
         case .none:
@@ -390,6 +444,14 @@ struct OnboardingView: View {
                 isFieldFocused = true
             }
         }
+    }
+}
+
+private struct InputSectionHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
