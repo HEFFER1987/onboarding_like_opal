@@ -1,0 +1,10 @@
+{
+    "sweetpad.build.xcodeWorkspacePath": "TestOnboardingChat/TestOnboardingChat.xcodeproj/project.xcworkspace",
+    "sweetpad.build.scheme": "TestOnboardingChat",
+    "sweetpad.build.configuration": "Debug",
+    "sweetpad.build.destination": {
+        "type": "iOSSimulator",
+        "id": "iossimulator-81B2652D-05DA-4C48-9F09-4DDD726CEA5F"
+    },
+    "lldb.library": "/Applications/Xcode.app/Contents/SharedFrameworks/LLDB.framework/Versions/A/LLDB"
+}
