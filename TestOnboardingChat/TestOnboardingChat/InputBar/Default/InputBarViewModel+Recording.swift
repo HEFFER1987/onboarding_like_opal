@@ -1,13 +1,14 @@
 //
-//  ComposerViewModel+Recording.swift
+//  InputBarViewModel+Recording.swift
 //  TestOnboardingChat
 //
 
+import AVFoundation
 import CoreGraphics
 import Foundation
 import UIKit
 
-extension ComposerViewModel {
+extension InputBarViewModel {
     func showRecordingTip() {
         recordingSnackBarText = "Hold the microphone button to record a voice message."
     }
@@ -42,10 +43,14 @@ extension ComposerViewModel {
     func saveRecording() {
         guard recordingState == .recording else { return }
         stopRecording()
+        resetRecordingUIIfRecordingDidNotFinish()
     }
 
     func discardRecording() {
         let wasRecording = recordingState != .initial
+        if let pending = pendingAudioRecording {
+            pendingVoiceRecordings.removeAll { $0.id == pending.id }
+        }
         voiceRecordingService.cancelRecording()
         recordingState = .initial
         audioRecordingInfo = .initial
@@ -57,14 +62,15 @@ extension ComposerViewModel {
     }
 
     func confirmRecording() {
-        if recordingState == .stopped, let pending = pendingAudioRecording {
-            pendingVoiceRecordings.append(pending)
+        if recordingState == .stopped {
             pendingAudioRecording = nil
             audioRecordingInfo = .initial
             recordingState = .initial
-        } else {
-            stopRecording()
+            return
         }
+
+        stopRecording()
+        finishRecordingUIIfNeeded()
     }
 
     func previewRecording() {
@@ -73,34 +79,50 @@ extension ComposerViewModel {
     }
 
     private func handleRecordingFinished(url: URL, duration: TimeInterval, waveform: [Float]) {
-        Task { @MainActor in
-            guard audioRecordingInfo != .initial || recordingState == .stopped else {
-                try? FileManager.default.removeItem(at: url)
-                recordingState = .initial
-                audioRecordingInfo = .initial
-                return
-            }
+        let resolvedDuration = resolvedRecordingDuration(url: url, reportedDuration: duration)
 
-            guard duration > 0.1 else {
-                try? FileManager.default.removeItem(at: url)
-                recordingState = .initial
-                audioRecordingInfo = .initial
-                return
-            }
-
-            let samples = waveform.isEmpty ? Array(repeating: Float(0.25), count: 20) : waveform
-            let recording = ComposerVoiceRecording(url: url, duration: duration, waveform: samples)
-
-            if recordingState == .stopped {
-                pendingAudioRecording = recording
-                audioRecordingInfo.waveform = samples
-                audioRecordingInfo.duration = duration
-            } else {
-                pendingVoiceRecordings.append(recording)
-                recordingState = .initial
-                audioRecordingInfo = .initial
-                recordingGestureLocation = .zero
-            }
+        guard resolvedDuration > 0.1 else {
+            try? FileManager.default.removeItem(at: url)
+            recordingState = .initial
+            audioRecordingInfo = .initial
+            recordingGestureLocation = .zero
+            pendingAudioRecording = nil
+            return
         }
+
+        let samples = waveform.isEmpty ? Array(repeating: Float(0.25), count: 20) : waveform
+        let recording = InputBarVoiceRecording(url: url, duration: resolvedDuration, waveform: samples)
+        pendingVoiceRecordings.append(recording)
+
+        if recordingState == .stopped {
+            pendingAudioRecording = recording
+            audioRecordingInfo.waveform = samples
+            audioRecordingInfo.duration = resolvedDuration
+        } else {
+            recordingState = .initial
+            audioRecordingInfo = .initial
+            recordingGestureLocation = .zero
+            pendingAudioRecording = nil
+        }
+    }
+
+    private func resolvedRecordingDuration(url: URL, reportedDuration: TimeInterval) -> TimeInterval {
+        var resolved = max(reportedDuration, audioRecordingInfo.duration)
+        let assetDuration = CMTimeGetSeconds(AVURLAsset(url: url).duration)
+        if assetDuration.isFinite {
+            resolved = max(resolved, assetDuration)
+        }
+        return resolved
+    }
+
+    private func resetRecordingUIIfRecordingDidNotFinish() {
+        finishRecordingUIIfNeeded()
+    }
+
+    private func finishRecordingUIIfNeeded() {
+        guard recordingState != .initial else { return }
+        recordingState = .initial
+        audioRecordingInfo = .initial
+        recordingGestureLocation = .zero
     }
 }

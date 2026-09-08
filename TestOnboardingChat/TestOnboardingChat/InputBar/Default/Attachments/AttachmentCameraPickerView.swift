@@ -8,11 +8,11 @@ import SwiftUI
 import UIKit
 
 struct AttachmentCameraPickerView: View {
-    @Bindable var viewModel: ComposerViewModel
+    @Bindable var viewModel: InputBarViewModel
 
     @State private var cameraStatus: AVAuthorizationStatus
 
-    init(viewModel: ComposerViewModel) {
+    init(viewModel: InputBarViewModel) {
         self.viewModel = viewModel
         _cameraStatus = State(
             initialValue: AVCaptureDevice.authorizationStatus(for: .video)
@@ -109,7 +109,7 @@ struct AttachmentImagePickerView: UIViewControllerRepresentable {
     var onAssetPicked: (AddedMediaAsset) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = ComposerCameraImagePickerController()
+        let picker = InputBarCameraImagePickerController()
         picker.delegate = context.coordinator
         if UIImagePickerController.isSourceTypeAvailable(sourceType) {
             picker.sourceType = sourceType
@@ -132,7 +132,7 @@ struct AttachmentImagePickerView: UIViewControllerRepresentable {
     }
 }
 
-private final class ComposerCameraImagePickerController: UIImagePickerController {
+private final class InputBarCameraImagePickerController: UIImagePickerController {
     override func viewDidLoad() {
         super.viewDidLoad()
         accessibilityLabel = ""

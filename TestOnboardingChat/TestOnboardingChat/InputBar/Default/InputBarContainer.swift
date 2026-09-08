@@ -1,13 +1,13 @@
 //
-//  ComposerContainer.swift
+//  InputBarContainer.swift
 //  TestOnboardingChat
 //
 
 import SwiftUI
 
-struct ComposerContainer: View {
+struct InputBarContainer: View {
     @Binding var text: String
-    @Bindable var viewModel: ComposerViewModel
+    @Bindable var viewModel: InputBarViewModel
     var placeholder: String
     var keyboardType: UIKeyboardType = .default
     var isSendEnabled: Bool
@@ -17,7 +17,7 @@ struct ComposerContainer: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TelegramInputBar(
+            InputBarView(
                 text: $text,
                 viewModel: viewModel,
                 placeholder: placeholder,
@@ -74,14 +74,14 @@ struct ComposerContainer: View {
     struct PreviewWrapper: View {
         @State private var text = ""
         @State private var isFocused = false
-        @State private var viewModel = ComposerViewModel()
+        @State private var viewModel = InputBarViewModel(config: InputBarFeatureConfig())
 
         var body: some View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 VStack {
                     Spacer()
-                    ComposerContainer(
+                    InputBarContainer(
                         text: $text,
                         viewModel: viewModel,
                         placeholder: "Message",

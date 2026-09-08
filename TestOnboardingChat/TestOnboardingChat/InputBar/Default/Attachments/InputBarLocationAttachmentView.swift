@@ -1,27 +1,20 @@
 //
-//  ComposerLocationAttachmentView.swift
+//  InputBarLocationAttachmentView.swift
 //  TestOnboardingChat
 //
 
 import MapKit
 import SwiftUI
 
-struct ComposerLocationAttachmentView: View {
-    let location: ComposerLocation
+struct InputBarLocationAttachmentView: View {
+    let location: InputBarLocation
     let onDiscard: (String) -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Map(initialPosition: .region(MKCoordinateRegion(
-                center: location.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            ))) {
-                Marker(location.label ?? "Location", coordinate: location.coordinate)
-            }
-            .mapStyle(.standard(elevation: .flat))
-            .allowsHitTesting(false)
-            .frame(width: 72, height: 72)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            MapSnapshotView(coordinate: location.coordinate)
+                .frame(width: 72, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
 
             VStack(alignment: .leading, spacing: 2) {
                 Label(location.label ?? "Location", systemImage: "mappin.and.ellipse")

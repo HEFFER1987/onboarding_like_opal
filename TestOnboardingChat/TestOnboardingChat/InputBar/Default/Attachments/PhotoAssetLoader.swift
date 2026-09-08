@@ -114,7 +114,7 @@ final class PhotoAssetLoader {
         return Int64(size) >= maxAttachmentSize
     }
 
-    func compressAsset(at url: URL, type: ComposerAssetType, completion: @escaping @MainActor (URL?) -> Void) {
+    func compressAsset(at url: URL, type: InputBarAssetType, completion: @escaping @MainActor (URL?) -> Void) {
         guard type == .video else {
             completion(nil)
             return

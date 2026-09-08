@@ -13,7 +13,7 @@ enum VoiceRecordingState: Equatable, Sendable {
 }
 
 extension VoiceRecordingState {
-    var showsComposer: Bool {
+    var showsTextInput: Bool {
         self == .initial
     }
 

@@ -1,13 +1,13 @@
 //
-//  TelegramInputBar.swift
+//  InputBarView.swift
 //  TestOnboardingChat
 //
 
 import SwiftUI
 
-struct TelegramInputBar: View {
+struct InputBarView: View {
     @Binding var text: String
-    @Bindable var viewModel: ComposerViewModel
+    @Bindable var viewModel: InputBarViewModel
     var placeholder: String
     var keyboardType: UIKeyboardType = .default
     var isSendEnabled: Bool
@@ -29,7 +29,7 @@ struct TelegramInputBar: View {
         viewModel.config.isVoiceRecordingEnabled
             && text.isEmpty
             && !viewModel.hasPendingAttachments
-            && viewModel.recordingState.showsComposer
+            && viewModel.recordingState.showsTextInput
     }
 
     private var isPickerExpanded: Bool {
@@ -44,8 +44,8 @@ struct TelegramInputBar: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            if viewModel.recordingState.showsComposer {
-                ComposerAttachmentsTray(
+            if viewModel.recordingState.showsTextInput || viewModel.hasPendingAttachments {
+                InputBarAttachmentsTray(
                     assets: viewModel.pendingAssets,
                     voiceRecordings: viewModel.pendingVoiceRecordings,
                     playback: viewModel.voicePlayback,
@@ -55,7 +55,9 @@ struct TelegramInputBar: View {
             }
 
             HStack(alignment: .bottom, spacing: 8) {
-                attachButton
+                if viewModel.config.isAttachmentButtonVisible {
+                    attachButton
+                }
 
                 inputArea
                     .frame(maxWidth: .infinity)
@@ -75,14 +77,14 @@ struct TelegramInputBar: View {
             .transaction { $0.animation = nil }
         }
         .animation(.easeInOut(duration: 0.2), value: showsSend)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.recordingState.showsComposer)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.recordingState.showsTextInput)
     }
 
     // MARK: - Input Area
 
     @ViewBuilder
     private var inputArea: some View {
-        if viewModel.recordingState.showsComposer {
+        if viewModel.recordingState.showsTextInput {
             inputCapsule
         } else {
             VoiceRecordingInputView(
@@ -264,12 +266,12 @@ struct TelegramInputBar: View {
     struct PreviewWrapper: View {
         @State private var text = ""
         @State private var isFocused = false
-        @State private var viewModel = ComposerViewModel()
+        @State private var viewModel = InputBarViewModel(config: InputBarFeatureConfig())
 
         var body: some View {
             ZStack {
                 Color.black.ignoresSafeArea()
-                TelegramInputBar(
+                InputBarView(
                     text: $text,
                     viewModel: viewModel,
                     placeholder: "Message",

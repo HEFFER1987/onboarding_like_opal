@@ -6,20 +6,46 @@
 import SwiftUI
 
 struct AttachmentTypeTabs: View {
+    var tabs: [AttachmentPickerTab]
     var selected: AttachmentPickerTab
     var onSelect: (AttachmentPickerTab) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
-            tabButton(tab: .photos, icon: "photo", label: "Photos")
-            tabButton(tab: .camera, icon: "camera", label: "Camera")
-            tabButton(tab: .files, icon: "doc", label: "Files")
-            tabButton(tab: .location, icon: "mappin.and.ellipse", label: "Location")
+            ForEach(tabs, id: \.self) { tab in
+                tabButton(tab: tab, icon: icon(for: tab), label: label(for: tab))
+            }
             Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color.white.opacity(0.06))
+    }
+
+    private func icon(for tab: AttachmentPickerTab) -> String {
+        switch tab {
+        case .photos:
+            "photo"
+        case .camera:
+            "camera"
+        case .files:
+            "doc"
+        case .location:
+            "mappin.and.ellipse"
+        }
+    }
+
+    private func label(for tab: AttachmentPickerTab) -> String {
+        switch tab {
+        case .photos:
+            "Photos"
+        case .camera:
+            "Camera"
+        case .files:
+            "Files"
+        case .location:
+            "Location"
+        }
     }
 
     private func tabButton(tab: AttachmentPickerTab, icon: String, label: String) -> some View {

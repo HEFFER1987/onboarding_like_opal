@@ -12,8 +12,22 @@ private enum InputStep: Equatable {
 }
 
 private enum ConversationScrollTarget: Hashable {
+    case blurZoneSpacer
     case message(UUID)
     case bottom
+}
+
+private struct ScrollSnapshot: Equatable {
+    let contentOffsetY: CGFloat
+    let isScrolledUp: Bool
+}
+
+private struct MessageFramesPreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
 }
 
 struct OnboardingView: View {
@@ -25,7 +39,9 @@ struct OnboardingView: View {
     @State private var inputSectionHeight: CGFloat = 60
 
     @State private var isFieldFocused = false
-    @State private var composerVM = ComposerViewModel()
+    @State private var inputController: ChatInputBarController
+
+    private let inputBarFactory: any ChatInputBarFactory
 
     private let followUpQuestions = OnboardingQuestion.followUp
     private let chatAnimation = Animation.easeInOut(duration: 0.55)
@@ -33,6 +49,14 @@ struct OnboardingView: View {
     private let userMessageSettleDuration: Duration = .milliseconds(550)
 
     @State private var pendingUserAnswerTask: Task<Void, Never>?
+    @State private var isManualScrollActive = false
+    @State private var scrollContentOffset: CGFloat = 0
+    @State private var messageFrames: [UUID: CGRect] = [:]
+
+    init(inputBarFactory: any ChatInputBarFactory = InputBarFactory()) {
+        self.inputBarFactory = inputBarFactory
+        _inputController = State(initialValue: inputBarFactory.makeController())
+    }
 
     private var trimmedInput: String {
         inputText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -65,10 +89,24 @@ struct OnboardingView: View {
         messages.lastIndex(where: { $0.role == .bot })
     }
 
-    private func blurRadius(forMessageAt index: Int) -> CGFloat {
-        guard let activeIndex = activeBotMessageIndex else { return 0 }
+    private func messageAppearance(
+        for message: ChatMessage,
+        at index: Int,
+        viewportHeight: CGFloat
+    ) -> ChatDepthStyle.Appearance {
+        if let frame = messageFrames[message.id] {
+            let messageCenterY = frame.midY - scrollContentOffset
+            return ChatDepthStyle.appearance(
+                messageCenterY: messageCenterY,
+                viewportHeight: viewportHeight
+            )
+        }
+
+        guard let activeIndex = activeBotMessageIndex else {
+            return ChatDepthStyle.Appearance(blurRadius: 0, textOpacity: 1)
+        }
         let stepsAbove = max(0, activeIndex - index)
-        return ChatDepthStyle.blurRadius(stepsAboveActiveQuestion: stepsAbove)
+        return ChatDepthStyle.appearance(stepsAboveActiveQuestion: stepsAbove)
     }
 
     var body: some View {
@@ -141,7 +179,7 @@ struct OnboardingView: View {
             }
 
             keyboardHeight = nextHeight
-            composerVM.updateKeyboardHeight(nextHeight)
+            inputController.updateKeyboardHeight(nextHeight)
         }
     }
 
@@ -153,16 +191,27 @@ struct OnboardingView: View {
     private var conversationArea: some View {
         GeometryReader { geometry in
             let visibleHeight = visibleConversationHeight(geometry.size.height)
+            let blurZoneHeight = ChatDepthStyle.blurZoneHeight(viewportHeight: visibleHeight)
 
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 28) {
+                        Color.clear
+                            .frame(height: blurZoneHeight)
+                            .id(ConversationScrollTarget.blurZoneSpacer)
+
                         ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                            let appearance = messageAppearance(
+                                for: message,
+                                at: index,
+                                viewportHeight: visibleHeight
+                            )
+
                             ChatMessageRow(
                                 message: message,
-                                isActiveQuestion: message.id == activeBotMessageID,
-                                blurRadius: blurRadius(forMessageAt: index),
+                                blurRadius: appearance.blurRadius,
+                                textOpacity: appearance.textOpacity,
                                 onTypingComplete: {
                                     completeBotTyping(messageID: message.id)
                                 },
@@ -175,6 +224,18 @@ struct OnboardingView: View {
                                     )
                                 }
                             )
+                            .background {
+                                GeometryReader { messageGeometry in
+                                    Color.clear.preference(
+                                        key: MessageFramesPreferenceKey.self,
+                                        value: [
+                                            message.id: messageGeometry.frame(
+                                                in: .named("conversationScroll")
+                                            )
+                                        ]
+                                    )
+                                }
+                            }
                             .chatMessageTransition()
                             .id(ConversationScrollTarget.message(message.id))
                         }
@@ -186,10 +247,27 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity, minHeight: visibleHeight, alignment: .bottom)
                     .padding(.horizontal, 32)
                     .padding(.vertical, 8)
+                    .coordinateSpace(name: "conversationScroll")
+                }
+                .onPreferenceChange(MessageFramesPreferenceKey.self) { frames in
+                    messageFrames = frames
                 }
                 .frame(height: visibleHeight, alignment: .top)
-                .scrollDisabled(true)
                 .scrollBounceBehavior(.basedOnSize)
+                .onScrollGeometryChange(for: ScrollSnapshot.self) { geometry in
+                    let distanceFromBottom = geometry.contentSize.height
+                        - geometry.contentInsets.bottom
+                        - geometry.contentOffset.y
+                        - geometry.containerSize.height
+
+                    return ScrollSnapshot(
+                        contentOffsetY: geometry.contentOffset.y,
+                        isScrolledUp: distanceFromBottom > 32
+                    )
+                } action: { _, snapshot in
+                    scrollContentOffset = snapshot.contentOffsetY
+                    isManualScrollActive = snapshot.isScrolledUp
+                }
                 .onChange(of: geometry.size.height) { _, newHeight in
                     guard isFieldFocused || keyboardHeight > 0 else { return }
                     scrollToActiveContent(
@@ -199,6 +277,7 @@ struct OnboardingView: View {
                     )
                 }
                 .onChange(of: messages.count) { _, _ in
+                    isManualScrollActive = false
                     scrollToActiveContent(
                         proxy: proxy,
                         measuredHeight: geometry.size.height,
@@ -222,14 +301,14 @@ struct OnboardingView: View {
     }
 
     private var inputSection: some View {
-        ComposerContainer(
+        inputBarFactory.makeView(
+            controller: inputController,
             text: $inputText,
-            viewModel: composerVM,
             placeholder: placeholder,
             isSendEnabled: canSubmit,
             isInteractionEnabled: inputStep != .none,
-            onSend: submitAnswer,
-            isFocused: $isFieldFocused
+            isFocused: $isFieldFocused,
+            onSend: submitAnswer
         )
     }
 
@@ -239,6 +318,8 @@ struct OnboardingView: View {
         viewportWidth: CGFloat,
         animated: Bool = true
     ) {
+        guard !isManualScrollActive else { return }
+
         DispatchQueue.main.async {
             let viewportHeight = visibleConversationHeight(measuredHeight)
 
@@ -330,7 +411,10 @@ struct OnboardingView: View {
         typingCompletions.removeAll()
         inputText = ""
         inputStep = .none
-        composerVM.clearAll()
+        inputController.reset()
+        messageFrames = [:]
+        scrollContentOffset = 0
+        isManualScrollActive = false
         messages.removeAll()
         startConversation()
     }

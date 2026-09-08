@@ -1,18 +1,18 @@
 //
-//  ComposerVideoAttachmentView.swift
+//  InputBarVideoAttachmentView.swift
 //  TestOnboardingChat
 //
 
 import SwiftUI
 
-struct ComposerVideoAttachmentView: View {
+struct InputBarVideoAttachmentView: View {
     let attachment: AddedMediaAsset
     let onDiscard: (String) -> Void
 
     var body: some View {
-        ComposerImageAttachmentView(attachment: attachment, onDiscard: onDiscard)
+        InputBarImageAttachmentView(attachment: attachment, onDiscard: onDiscard)
             .mediaBadgeOverlay {
-                ComposerVideoMediaBadge(durationText: formattedDuration)
+                InputBarVideoMediaBadge(durationText: formattedDuration)
             }
     }
 
@@ -26,7 +26,7 @@ struct ComposerVideoAttachmentView: View {
     }
 }
 
-struct ComposerVideoMediaBadge: View {
+struct InputBarVideoMediaBadge: View {
     let durationText: String
 
     var body: some View {

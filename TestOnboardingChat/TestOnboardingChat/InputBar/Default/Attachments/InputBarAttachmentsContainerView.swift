@@ -1,14 +1,14 @@
 //
-//  ComposerAttachmentsContainerView.swift
+//  InputBarAttachmentsContainerView.swift
 //  TestOnboardingChat
 //
 
 import SwiftUI
 
-struct ComposerAttachmentsContainerView: View {
+struct InputBarAttachmentsContainerView: View {
     @Environment(\.layoutDirection) private var layoutDirection
 
-    var assets: [ComposerAsset]
+    var assets: [InputBarAsset]
     var onDiscardAttachment: (String) -> Void
 
     var body: some View {
@@ -38,7 +38,7 @@ struct ComposerAttachmentsContainerView: View {
         }
     }
 
-    private var displayedAssets: [ComposerAsset] {
+    private var displayedAssets: [InputBarAsset] {
         layoutDirection == .rightToLeft ? assets.reversed() : assets
     }
 
@@ -50,17 +50,17 @@ struct ComposerAttachmentsContainerView: View {
     private let tailId = "composer-tray-tail"
 
     @ViewBuilder
-    private func assetView(for asset: ComposerAsset) -> some View {
+    private func assetView(for asset: InputBarAsset) -> some View {
         switch asset {
         case .media(let attachment):
             switch attachment.type {
             case .video:
-                ComposerVideoAttachmentView(attachment: attachment, onDiscard: onDiscardAttachment)
+                InputBarVideoAttachmentView(attachment: attachment, onDiscard: onDiscardAttachment)
             case .image:
-                ComposerImageAttachmentView(attachment: attachment, onDiscard: onDiscardAttachment)
+                InputBarImageAttachmentView(attachment: attachment, onDiscard: onDiscardAttachment)
             }
         case .file(let url):
-            ComposerFileAttachmentView(url: url, onDiscard: onDiscardAttachment)
+            InputBarFileAttachmentView(url: url, onDiscard: onDiscardAttachment)
         }
     }
 }

@@ -1,11 +1,11 @@
 //
-//  ComposerFileAttachmentView.swift
+//  InputBarFileAttachmentView.swift
 //  TestOnboardingChat
 //
 
 import SwiftUI
 
-struct ComposerFileAttachmentView: View {
+struct InputBarFileAttachmentView: View {
     let url: URL
     let onDiscard: (String) -> Void
 

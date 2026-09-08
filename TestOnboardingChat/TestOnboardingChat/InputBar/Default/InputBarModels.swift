@@ -1,5 +1,5 @@
 //
-//  ComposerModels.swift
+//  InputBarModels.swift
 //  TestOnboardingChat
 //
 
@@ -19,7 +19,7 @@ enum PickerOverlayState: Equatable, Sendable {
     case attachmentPicker(AttachmentPickerTab)
 }
 
-enum ComposerAssetType: Sendable {
+enum InputBarAssetType: Sendable {
     case image
     case video
 }
@@ -28,14 +28,14 @@ enum ComposerAssetType: Sendable {
 struct AddedMediaAsset: Identifiable, Equatable, Sendable {
     let id: String
     let url: URL
-    let type: ComposerAssetType
+    let type: InputBarAssetType
     let image: UIImage
     let duration: TimeInterval?
 
     init(
         id: String = UUID().uuidString,
         url: URL,
-        type: ComposerAssetType,
+        type: InputBarAssetType,
         image: UIImage,
         duration: TimeInterval? = nil
     ) {
@@ -52,7 +52,7 @@ struct AddedMediaAsset: Identifiable, Equatable, Sendable {
 }
 
 /// Represents either a media asset (image/video) or a file URL in the composer tray.
-enum ComposerAsset: Identifiable, Equatable, Sendable {
+enum InputBarAsset: Identifiable, Equatable, Sendable {
     case media(AddedMediaAsset)
     case file(URL)
 
@@ -65,19 +65,19 @@ enum ComposerAsset: Identifiable, Equatable, Sendable {
         }
     }
 
-    static func == (lhs: ComposerAsset, rhs: ComposerAsset) -> Bool {
+    static func == (lhs: InputBarAsset, rhs: InputBarAsset) -> Bool {
         lhs.id == rhs.id
     }
 }
 
-struct ComposerVoiceRecording: Identifiable, Equatable, Sendable {
+struct InputBarVoiceRecording: Identifiable, Equatable, Sendable {
     var id: String { url.absoluteString }
     let url: URL
     let duration: TimeInterval
     let waveform: [Float]
 }
 
-struct ComposerLocation: Identifiable, Equatable, Sendable {
+struct InputBarLocation: Identifiable, Equatable, Sendable {
     let id: String
     let latitude: Double
     let longitude: Double
@@ -100,12 +100,57 @@ struct ComposerLocation: Identifiable, Equatable, Sendable {
     }
 }
 
-struct ComposerConfig {
-    var maxGalleryAssetsCount: Int? = 10
-    var maxAttachmentSize: Int64 = 100 * 1024 * 1024
+struct InputBarFeatureConfig: Sendable {
+    var isAttachmentsEnabled: Bool = true
+    var isGalleryImagesEnabled: Bool = true
+    var isGalleryVideosEnabled: Bool = true
+    var isCameraEnabled: Bool = true
+    var isFileAttachmentEnabled: Bool = true
+    var isLocationAttachmentEnabled: Bool = true
     var isVoiceRecordingEnabled: Bool = true
     var isVoiceRecordingAutoSendEnabled: Bool = false
-    var gallerySupportedTypes: GallerySupportedTypes = .imagesAndVideo
+    var maxGalleryAssetsCount: Int? = 10
+    var maxAttachmentSize: Int64 = 100 * 1024 * 1024
+
+    static let `default` = InputBarFeatureConfig()
+
+    var isGalleryTabEnabled: Bool {
+        isGalleryImagesEnabled || isGalleryVideosEnabled
+    }
+
+    var gallerySupportedTypes: GallerySupportedTypes {
+        switch (isGalleryImagesEnabled, isGalleryVideosEnabled) {
+        case (true, true):
+            .imagesAndVideo
+        case (true, false):
+            .images
+        case (false, true):
+            .videos
+        case (false, false):
+            .imagesAndVideo
+        }
+    }
+
+    var availableAttachmentTabs: [AttachmentPickerTab] {
+        var tabs: [AttachmentPickerTab] = []
+        if isGalleryTabEnabled {
+            tabs.append(.photos)
+        }
+        if isCameraEnabled {
+            tabs.append(.camera)
+        }
+        if isFileAttachmentEnabled {
+            tabs.append(.files)
+        }
+        if isLocationAttachmentEnabled {
+            tabs.append(.location)
+        }
+        return tabs
+    }
+
+    var isAttachmentButtonVisible: Bool {
+        isAttachmentsEnabled && !availableAttachmentTabs.isEmpty
+    }
 }
 
 enum GallerySupportedTypes: Sendable {

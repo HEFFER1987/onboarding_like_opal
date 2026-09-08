@@ -21,7 +21,7 @@ final class MediaPickerAssetHandler: ObservableObject {
     private let assetLoader: PhotoAssetLoader
     private var requestToken: UUID?
 
-    var assetType: ComposerAssetType {
+    var assetType: InputBarAssetType {
         asset.mediaType == .video ? .video : .image
     }
 

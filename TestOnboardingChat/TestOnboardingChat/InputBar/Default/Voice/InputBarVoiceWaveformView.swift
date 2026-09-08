@@ -1,11 +1,11 @@
 //
-//  ComposerVoiceWaveformView.swift
+//  InputBarVoiceWaveformView.swift
 //  TestOnboardingChat
 //
 
 import SwiftUI
 
-struct ComposerVoiceWaveformView: View {
+struct InputBarVoiceWaveformView: View {
     let waveform: [Float]
     let progress: Double
 

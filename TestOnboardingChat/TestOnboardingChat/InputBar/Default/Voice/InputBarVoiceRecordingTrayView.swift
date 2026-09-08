@@ -1,19 +1,19 @@
 //
-//  ComposerVoiceRecordingTrayView.swift
+//  InputBarVoiceRecordingTrayView.swift
 //  TestOnboardingChat
 //
 
 import SwiftUI
 
-struct ComposerVoiceRecordingTrayView: View {
-    var recordings: [ComposerVoiceRecording]
+struct InputBarVoiceRecordingTrayView: View {
+    var recordings: [InputBarVoiceRecording]
     @Bindable var playback: VoiceRecordingPlaybackService
     var onRemove: (String) -> Void
 
     var body: some View {
         VStack(spacing: 6) {
             ForEach(recordings) { recording in
-                ComposerVoiceRecordingAttachmentView(
+                InputBarVoiceRecordingAttachmentView(
                     recording: recording,
                     playback: playback,
                     onDiscard: onRemove
@@ -23,8 +23,8 @@ struct ComposerVoiceRecordingTrayView: View {
     }
 }
 
-struct ComposerVoiceRecordingAttachmentView: View {
-    let recording: ComposerVoiceRecording
+struct InputBarVoiceRecordingAttachmentView: View {
+    let recording: InputBarVoiceRecording
     @Bindable var playback: VoiceRecordingPlaybackService
     let onDiscard: (String) -> Void
 
@@ -70,7 +70,7 @@ struct ComposerVoiceRecordingAttachmentView: View {
                     .foregroundStyle(.white.opacity(0.75))
                     .frame(width: 36, alignment: .leading)
 
-                ComposerVoiceWaveformView(
+                InputBarVoiceWaveformView(
                     waveform: recording.waveform,
                     progress: progress
                 )

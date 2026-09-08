@@ -1,5 +1,5 @@
 //
-//  UIImage+Composer.swift
+//  UIImage+InputBar.swift
 //  TestOnboardingChat
 //
 

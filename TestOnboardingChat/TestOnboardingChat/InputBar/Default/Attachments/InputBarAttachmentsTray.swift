@@ -1,15 +1,15 @@
 //
-//  ComposerAttachmentsTray.swift
+//  InputBarAttachmentsTray.swift
 //  TestOnboardingChat
 //
 
 import SwiftUI
 
-struct ComposerAttachmentsTray: View {
-    var assets: [ComposerAsset]
-    var voiceRecordings: [ComposerVoiceRecording]
+struct InputBarAttachmentsTray: View {
+    var assets: [InputBarAsset]
+    var voiceRecordings: [InputBarVoiceRecording]
     var playback: VoiceRecordingPlaybackService
-    var location: ComposerLocation?
+    var location: InputBarLocation?
     var onRemove: (String) -> Void
 
     private var hasContent: Bool {
@@ -20,7 +20,7 @@ struct ComposerAttachmentsTray: View {
         if hasContent {
             VStack(alignment: .leading, spacing: 8) {
                 if !assets.isEmpty {
-                    ComposerAttachmentsContainerView(
+                    InputBarAttachmentsContainerView(
                         assets: assets,
                         onDiscardAttachment: onRemove
                     )
@@ -28,7 +28,7 @@ struct ComposerAttachmentsTray: View {
                 }
 
                 if !voiceRecordings.isEmpty {
-                    ComposerVoiceRecordingTrayView(
+                    InputBarVoiceRecordingTrayView(
                         recordings: voiceRecordings,
                         playback: playback,
                         onRemove: onRemove
@@ -37,7 +37,7 @@ struct ComposerAttachmentsTray: View {
                 }
 
                 if let location {
-                    ComposerLocationAttachmentView(
+                    InputBarLocationAttachmentView(
                         location: location,
                         onDiscard: onRemove
                     )

@@ -7,7 +7,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct AttachmentFilePickerView: View {
-    @Bindable var viewModel: ComposerViewModel
+    @Bindable var viewModel: InputBarViewModel
 
     var body: some View {
         FileOpenPromptView {

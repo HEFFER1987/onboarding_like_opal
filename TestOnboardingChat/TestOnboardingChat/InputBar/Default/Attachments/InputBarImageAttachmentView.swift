@@ -1,11 +1,11 @@
 //
-//  ComposerImageAttachmentView.swift
+//  InputBarImageAttachmentView.swift
 //  TestOnboardingChat
 //
 
 import SwiftUI
 
-struct ComposerImageAttachmentView: View {
+struct InputBarImageAttachmentView: View {
     private let imageSize: CGFloat = 72
 
     let attachment: AddedMediaAsset

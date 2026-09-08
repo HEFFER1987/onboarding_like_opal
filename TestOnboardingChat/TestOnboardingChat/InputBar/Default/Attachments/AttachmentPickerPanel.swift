@@ -6,16 +6,19 @@
 import SwiftUI
 
 struct AttachmentPickerPanel: View {
-    @Bindable var viewModel: ComposerViewModel
+    @Bindable var viewModel: InputBarViewModel
 
     var height: CGFloat
 
     var body: some View {
         VStack(spacing: 0) {
-            AttachmentTypeTabs(
-                selected: viewModel.selectedPickerTab,
-                onSelect: { viewModel.setPickerTab($0) }
-            )
+            if !viewModel.config.availableAttachmentTabs.isEmpty {
+                AttachmentTypeTabs(
+                    tabs: viewModel.config.availableAttachmentTabs,
+                    selected: viewModel.selectedPickerTab,
+                    onSelect: { viewModel.setPickerTab($0) }
+                )
+            }
 
             tabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

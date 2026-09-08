@@ -76,11 +76,15 @@ final class VoiceRecordingService {
     func stopRecording() {
         meterTimer?.invalidate()
         meterTimer = nil
-        recorder?.stop()
+        isPreparingRecording = false
         guard let url = recordingURL else { return }
         let duration = recorder?.currentTime ?? 0
+        let waveform = waveformSamples
+        recorder?.stop()
         recorder = nil
-        onFinish?(url, duration, waveformSamples)
+        recordingURL = nil
+        waveformSamples = []
+        onFinish?(url, duration, waveform)
     }
 
     func cancelRecording() {

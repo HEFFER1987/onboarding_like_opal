@@ -1,5 +1,5 @@
 //
-//  ComposerViewModel.swift
+//  InputBarViewModel.swift
 //  TestOnboardingChat
 //
 
@@ -12,10 +12,10 @@ import UniformTypeIdentifiers
 
 @Observable
 @MainActor
-final class ComposerViewModel {
-    var pendingAssets: [ComposerAsset] = []
-    var pendingVoiceRecordings: [ComposerVoiceRecording] = []
-    var pendingLocation: ComposerLocation?
+final class InputBarViewModel: ChatInputBarController {
+    var pendingAssets: [InputBarAsset] = []
+    var pendingVoiceRecordings: [InputBarVoiceRecording] = []
+    var pendingLocation: InputBarLocation?
     var pickerOverlay: PickerOverlayState = .hidden
     var keyboardHeight: CGFloat = 0
     var popupHeight: CGFloat = 350
@@ -35,16 +35,20 @@ final class ComposerViewModel {
         }
     }
     var audioRecordingInfo = AudioRecordingInfo.initial
-    var pendingAudioRecording: ComposerVoiceRecording?
+    var pendingAudioRecording: InputBarVoiceRecording?
     var attachmentSizeExceeded = false
     var photoLibraryAssets: PHFetchResult<PHAsset>?
     var cameraPickerShown = false
     var filePickerShown = false
     var recordingSnackBarText: String?
 
-    let config = ComposerConfig()
+    let config: InputBarFeatureConfig
     let voiceRecordingService = VoiceRecordingService()
     let voicePlayback = VoiceRecordingPlaybackService()
+
+    init(config: InputBarFeatureConfig) {
+        self.config = config
+    }
 
     var hasPendingAttachments: Bool {
         !pendingAssets.isEmpty || !pendingVoiceRecordings.isEmpty || pendingLocation != nil
@@ -57,7 +61,7 @@ final class ComposerViewModel {
     var selectedPickerTab: AttachmentPickerTab {
         switch pickerOverlay {
         case .hidden:
-            .photos
+            config.availableAttachmentTabs.first ?? .photos
         case .attachmentPicker(let tab):
             tab
         }
@@ -77,17 +81,26 @@ final class ComposerViewModel {
     // MARK: - Picker
 
     func toggleAttachmentPicker() {
+        guard config.isAttachmentsEnabled else { return }
+
         switch pickerOverlay {
         case .hidden:
-            pickerOverlay = .attachmentPicker(.photos)
-            askForPhotosPermission()
+            guard let firstTab = config.availableAttachmentTabs.first else { return }
+            pickerOverlay = .attachmentPicker(firstTab)
+            if firstTab == .photos {
+                askForPhotosPermission()
+            }
         case .attachmentPicker:
             pickerOverlay = .hidden
         }
     }
 
     func setPickerTab(_ tab: AttachmentPickerTab) {
+        guard config.availableAttachmentTabs.contains(tab) else { return }
         pickerOverlay = .attachmentPicker(tab)
+        if tab == .photos {
+            askForPhotosPermission()
+        }
     }
 
     func hidePicker() {
@@ -139,7 +152,7 @@ final class ComposerViewModel {
     func addFileURLs(_ urls: [URL]) {
         for url in urls {
             guard canAddAsset, checkAttachmentSize(url: url) else { continue }
-            pendingAssets.append(composerAsset(from: url))
+            pendingAssets.append(inputBarAsset(from: url))
         }
         filePickerShown = false
         if !urls.isEmpty {
@@ -147,7 +160,7 @@ final class ComposerViewModel {
         }
     }
 
-    func setLocation(_ location: ComposerLocation) {
+    func setLocation(_ location: InputBarLocation) {
         pendingLocation = location
         hidePicker()
     }
@@ -157,6 +170,13 @@ final class ComposerViewModel {
             if let recording = pendingVoiceRecordings.first(where: { $0.id == id }),
                voicePlayback.isActive(url: recording.url) {
                 voicePlayback.stop()
+            }
+            if pendingAudioRecording?.id == id {
+                pendingAudioRecording = nil
+                audioRecordingInfo = .initial
+                if recordingState == .stopped {
+                    recordingState = .initial
+                }
             }
         }
         pendingAssets.removeAll { $0.id == id }
@@ -175,6 +195,11 @@ final class ComposerViewModel {
         pendingAudioRecording = nil
         recordingState = .initial
         recordingGestureLocation = .zero
+        hidePicker()
+    }
+
+    func reset() {
+        clearAll()
     }
 
     func isAssetSelected(id: String) -> Bool {
@@ -219,6 +244,7 @@ final class ComposerViewModel {
     private func fetchPhotoLibraryAssets() {
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        fetchOptions.predicate = photoLibraryPredicate(for: config.gallerySupportedTypes)
         let assets = PHAsset.fetchAssets(with: fetchOptions)
         if let current = photoLibraryAssets, Self.haveSamePhotoLibraryContent(current, assets) {
             return
@@ -235,6 +261,21 @@ final class ComposerViewModel {
             && lhs.lastObject?.localIdentifier == rhs.lastObject?.localIdentifier
     }
 
+    private func photoLibraryPredicate(for supportedTypes: GallerySupportedTypes) -> NSPredicate? {
+        switch supportedTypes {
+        case .images:
+            return NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+        case .videos:
+            return NSPredicate(format: "mediaType == %d", PHAssetMediaType.video.rawValue)
+        case .imagesAndVideo:
+            return NSPredicate(
+                format: "mediaType == %d OR mediaType == %d",
+                PHAssetMediaType.image.rawValue,
+                PHAssetMediaType.video.rawValue
+            )
+        }
+    }
+
     // MARK: - Private
 
     private var canAddAsset: Bool {
@@ -244,7 +285,7 @@ final class ComposerViewModel {
         return true
     }
 
-    private func composerAsset(from url: URL) -> ComposerAsset {
+    private func inputBarAsset(from url: URL) -> InputBarAsset {
         _ = url.startAccessingSecurityScopedResource()
         let ext = url.pathExtension.lowercased()
         let imageTypes = ["jpg", "jpeg", "png", "heic", "gif", "webp"]
