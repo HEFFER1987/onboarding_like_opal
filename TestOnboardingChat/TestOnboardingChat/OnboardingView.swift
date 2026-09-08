@@ -22,9 +22,10 @@ struct OnboardingView: View {
     @State private var inputText = ""
     @State private var inputStep: InputStep = .none
     @State private var keyboardHeight: CGFloat = 0
-    @State private var inputSectionHeight: CGFloat = 156
+    @State private var inputSectionHeight: CGFloat = 60
 
-    @FocusState private var isFieldFocused: Bool
+    @State private var isFieldFocused = false
+    @State private var composerVM = ComposerViewModel()
 
     private let followUpQuestions = OnboardingQuestion.followUp
     private let chatAnimation = Animation.easeInOut(duration: 0.55)
@@ -43,15 +44,6 @@ struct OnboardingView: View {
 
     private var canSubmit: Bool {
         !trimmedInput.isEmpty && !isBotTyping && inputStep != .none
-    }
-
-    private var submitTitle: String {
-        switch inputStep {
-        case .followUp(let index) where index == followUpQuestions.count - 1:
-            "Finish"
-        default:
-            "Continue"
-        }
     }
 
     private var placeholder: String {
@@ -81,16 +73,20 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea(edges: [.top, .leading, .trailing])
+            Color.black.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 conversationArea
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        dismissKeyboard()
+                    }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 inputSection
-                    .padding(.horizontal, 32)
-                    .padding(.top, 20)
-                    .padding(.bottom, 16)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
                     .background(Color.black)
                     .background {
                         GeometryReader { inputGeometry in
@@ -126,24 +122,32 @@ struct OnboardingView: View {
             inputSectionHeight = height
         }
         .onAppear(perform: startConversation)
+        .onChange(of: isFieldFocused) { _, isFocused in
+            if !isFocused {
+                keyboardHeight = 0
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
+            if #available(iOS 26, *) { return }
+
             guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
             let screenHeight = UIScreen.main.bounds.height
             let nextHeight = max(0, screenHeight - frame.minY)
 
             // iOS 18 can emit a transient keyboard-dismiss frame while the field stays focused.
-            if nextHeight == 0 && isFieldFocused {
+            // Keep keyboard height stable while the bot is typing so the layout doesn't jump.
+            if nextHeight == 0 && (isFieldFocused || isBotTyping) {
                 return
             }
 
-            if #available(iOS 26, *) {
-                withAnimation(.easeOut(duration: 0.25)) {
-                    keyboardHeight = nextHeight
-                }
-            } else {
-                keyboardHeight = nextHeight
-            }
+            keyboardHeight = nextHeight
+            composerVM.updateKeyboardHeight(nextHeight)
         }
+    }
+
+    private func dismissKeyboard() {
+        isFieldFocused = false
+        keyboardHeight = 0
     }
 
     private var conversationArea: some View {
@@ -202,6 +206,7 @@ struct OnboardingView: View {
                     )
                 }
                 .onChange(of: keyboardHeight) { _, _ in
+                    if #available(iOS 26, *) { return }
                     guard isFieldFocused || keyboardHeight > 0 else { return }
                     scrollToActiveContent(
                         proxy: proxy,
@@ -217,29 +222,15 @@ struct OnboardingView: View {
     }
 
     private var inputSection: some View {
-        VStack(spacing: 20) {
-            OpalTextField(
-                text: $inputText,
-                placeholder: placeholder,
-                keyboardType: keyboardType,
-                textAlignment: .leading
-            )
-            .focused($isFieldFocused)
-
-            GradientContinueButton(
-                title: submitTitle,
-                isEnabled: canSubmit,
-                action: submitAnswer
-            )
-        }
-    }
-
-    private var keyboardType: UIKeyboardType {
-        guard case .followUp(let index) = inputStep else { return .default }
-        switch followUpQuestions[index].id {
-        case 1, 2: return .numberPad
-        default: return .default
-        }
+        ComposerContainer(
+            text: $inputText,
+            viewModel: composerVM,
+            placeholder: placeholder,
+            isSendEnabled: canSubmit,
+            isInteractionEnabled: inputStep != .none,
+            onSend: submitAnswer,
+            isFocused: $isFieldFocused
+        )
     }
 
     private func scrollToActiveContent(
@@ -290,7 +281,7 @@ struct OnboardingView: View {
 
     private func visibleConversationHeight(_ measuredHeight: CGFloat) -> CGFloat {
         if #available(iOS 26, *) { return measuredHeight }
-        guard keyboardHeight > 0, isFieldFocused else { return measuredHeight }
+        guard keyboardHeight > 0, isFieldFocused || isBotTyping else { return measuredHeight }
 
         let screenHeight = UIScreen.main.bounds.height
         let topInset: CGFloat = 72
@@ -327,6 +318,7 @@ struct OnboardingView: View {
             startBotTyping("First, what's your name?") {
                 inputStep = .name
                 inputText = ""
+                isFieldFocused = true
             }
         }
     }
@@ -338,6 +330,7 @@ struct OnboardingView: View {
         typingCompletions.removeAll()
         inputText = ""
         inputStep = .none
+        composerVM.clearAll()
         messages.removeAll()
         startConversation()
     }
@@ -384,6 +377,7 @@ struct OnboardingView: View {
             appendUserMessage(text)
         }
         inputText = ""
+        isFieldFocused = true
 
         pendingUserAnswerTask = Task { @MainActor in
             try? await Task.sleep(for: userMessageSettleDuration)
@@ -395,8 +389,6 @@ struct OnboardingView: View {
 
     private func submitAnswer() {
         guard canSubmit else { return }
-
-        isFieldFocused = false
 
         switch inputStep {
         case .name:

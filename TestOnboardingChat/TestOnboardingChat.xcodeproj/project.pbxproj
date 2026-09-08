@@ -254,6 +254,10 @@
 				DEVELOPMENT_TEAM = WG85DUNFDU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos to attach to messages.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Share your location in messages.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice messages.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select photos to attach to messages.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -287,6 +291,10 @@
 				DEVELOPMENT_TEAM = WG85DUNFDU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos to attach to messages.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Share your location in messages.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice messages.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select photos to attach to messages.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

@@ -1,0 +1,15 @@
+{
+  "originHash" : "d720b7548abe6af6040e280c1a0ca98238cc6741ab468562f0d975e908dec6fc",
+  "pins" : [
+    {
+      "identity" : "mediapicker",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/exyte/MediaPicker.git",
+      "state" : {
+        "revision" : "6f8745755530209462b60445ec4ba332c3058474",
+        "version" : "2.2.4"
+      }
+    }
+  ],
+  "version" : 3
+}
