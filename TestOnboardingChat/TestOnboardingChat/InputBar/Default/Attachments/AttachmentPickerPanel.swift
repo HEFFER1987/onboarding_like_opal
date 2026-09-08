@@ -43,9 +43,11 @@ struct AttachmentPickerPanel: View {
         case .files:
             AttachmentFilePickerView(viewModel: viewModel)
         case .location:
-            LocationPickerView { location in
-                viewModel.setLocation(location)
-            }
+            LocationPickerEmbeddedView(
+                viewModel: viewModel.locationPickerViewModel,
+                isSheetPresented: viewModel.isLocationSheetPresented,
+                onLocationSelected: { viewModel.setLocation($0) }
+            )
         }
     }
 

@@ -122,7 +122,7 @@ struct MediaPickerSelectionBadge: View {
         ZStack {
             if isSelected {
                 Circle()
-                    .fill(Color(red: 0.14, green: 0.52, blue: 0.98))
+                    .fill(Color.white.opacity(0.85))
                 Image(systemName: "checkmark")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white)

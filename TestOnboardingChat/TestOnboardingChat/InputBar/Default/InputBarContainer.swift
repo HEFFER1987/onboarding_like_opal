@@ -67,6 +67,20 @@ struct InputBarContainer: View {
         } message: {
             Text(viewModel.recordingSnackBarText ?? "")
         }
+        .sheet(isPresented: Binding(
+            get: { viewModel.isLocationSheetPresented },
+            set: { viewModel.isLocationSheetPresented = $0 }
+        )) {
+            LocationPickerSheetView(
+                viewModel: viewModel.locationPickerViewModel,
+                onLocationSelected: { location in
+                    viewModel.setLocation(location)
+                },
+                onDismiss: {
+                    viewModel.dismissLocationSheet()
+                }
+            )
+        }
     }
 }
 

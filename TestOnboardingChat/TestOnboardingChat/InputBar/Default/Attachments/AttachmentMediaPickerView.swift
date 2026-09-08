@@ -103,7 +103,7 @@ struct PhotoLibraryAccessPromptView: View {
                 onRequestAccess()
             }
             .buttonStyle(.borderedProminent)
-            .tint(Color(red: 0.14, green: 0.52, blue: 0.98))
+            .tint(.white.opacity(0.85))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

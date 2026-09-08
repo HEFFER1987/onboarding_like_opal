@@ -8,27 +8,63 @@ import UIKit
 
 private final class EmojiCapableTextField: UITextField {
     private var prefersEmojiKeyboard = false
+    private var prefersStandardKeyboard = false
+    private var lastStandardInputMode: UITextInputMode?
+    private var isShowingEmoji = false
+    private(set) var isPerformingKeyboardSwitch = false
 
     override var textInputContextIdentifier: String? {
-        prefersEmojiKeyboard ? "" : nil
+        if prefersEmojiKeyboard { return "" }
+        if prefersStandardKeyboard { return "standard" }
+        return nil
     }
 
     override var textInputMode: UITextInputMode? {
-        guard prefersEmojiKeyboard else { return super.textInputMode }
-        return UITextInputMode.activeInputModes.first { $0.primaryLanguage == "emoji" }
+        if prefersEmojiKeyboard {
+            return UITextInputMode.activeInputModes.first { $0.primaryLanguage == "emoji" }
+        }
+        if prefersStandardKeyboard {
+            return lastStandardInputMode ?? fallbackStandardInputMode()
+        }
+        return super.textInputMode
     }
 
-    func showEmojiKeyboard() {
-        prefersEmojiKeyboard = true
+    func beginKeyboardSwitch() {
+        isPerformingKeyboardSwitch = true
+    }
+
+    func endKeyboardSwitch() {
+        isPerformingKeyboardSwitch = false
+    }
+
+    func applyDesiredKeyboard(isEmoji: Bool) {
+        if isEmoji {
+            if !isShowingEmoji {
+                lastStandardInputMode = super.textInputMode ?? fallbackStandardInputMode()
+            }
+            isShowingEmoji = true
+            prefersEmojiKeyboard = true
+            prefersStandardKeyboard = false
+        } else {
+            if lastStandardInputMode == nil {
+                lastStandardInputMode = fallbackStandardInputMode()
+            }
+            isShowingEmoji = false
+            prefersEmojiKeyboard = false
+            prefersStandardKeyboard = true
+        }
 
         if !isFirstResponder {
             becomeFirstResponder()
         }
 
         reloadInputViews()
+    }
 
-        DispatchQueue.main.async { [weak self] in
-            self?.prefersEmojiKeyboard = false
+    private func fallbackStandardInputMode() -> UITextInputMode? {
+        UITextInputMode.activeInputModes.first { mode in
+            guard let language = mode.primaryLanguage else { return false }
+            return language != "emoji"
         }
     }
 }
@@ -39,7 +75,9 @@ struct StableKeyboardTextField: UIViewRepresentable {
     var keyboardType: UIKeyboardType
     @Binding var isFocused: Bool
     var isEnabled: Bool
-    var emojiKeyboardTrigger: Int = 0
+    var switchToEmojiKeyboard: Bool
+    var keyboardModeTrigger: Int = 0
+    @Binding var isKeyboardSwitching: Bool
     var onSubmit: () -> Void
 
     func makeUIView(context: Context) -> UIView {
@@ -98,10 +136,15 @@ struct StableKeyboardTextField: UIViewRepresentable {
             }
         }
 
-        let shouldShowEmojiKeyboard = context.coordinator.lastEmojiKeyboardTrigger != emojiKeyboardTrigger
-        if shouldShowEmojiKeyboard {
-            context.coordinator.lastEmojiKeyboardTrigger = emojiKeyboardTrigger
-            (textField as? EmojiCapableTextField)?.showEmojiKeyboard()
+        let shouldSwitchKeyboardMode = context.coordinator.lastKeyboardModeTrigger != keyboardModeTrigger
+        if shouldSwitchKeyboardMode {
+            context.coordinator.lastKeyboardModeTrigger = keyboardModeTrigger
+            guard let emojiField = textField as? EmojiCapableTextField else { return }
+            emojiField.beginKeyboardSwitch()
+            emojiField.applyDesiredKeyboard(isEmoji: switchToEmojiKeyboard)
+            finishKeyboardSwitch(on: emojiField) {
+                isKeyboardSwitching = false
+            }
         } else {
             syncFocus(on: textField)
         }
@@ -130,6 +173,13 @@ struct StableKeyboardTextField: UIViewRepresentable {
         )
     }
 
+    private func finishKeyboardSwitch(on textField: EmojiCapableTextField, completion: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            textField.endKeyboardSwitch()
+            completion()
+        }
+    }
+
     private func syncFocus(on textField: UITextField) {
         if isFocused, isEnabled, !textField.isFirstResponder {
             DispatchQueue.main.async {
@@ -143,10 +193,11 @@ struct StableKeyboardTextField: UIViewRepresentable {
     final class Coordinator: NSObject, UITextFieldDelegate {
         var parent: StableKeyboardTextField
         weak var textField: UITextField?
-        var lastEmojiKeyboardTrigger = 0
+        var lastKeyboardModeTrigger = 0
 
         init(parent: StableKeyboardTextField) {
             self.parent = parent
+            super.init()
         }
 
         @objc func textChanged(_ textField: UITextField) {
@@ -166,6 +217,12 @@ struct StableKeyboardTextField: UIViewRepresentable {
 
         func textFieldDidEndEditing(_ textField: UITextField) {
             guard parent.isFocused else { return }
+            if parent.isKeyboardSwitching {
+                return
+            }
+            if let emojiField = textField as? EmojiCapableTextField, emojiField.isPerformingKeyboardSwitch {
+                return
+            }
 
             DispatchQueue.main.async {
                 guard self.parent.isFocused else { return }

@@ -8,12 +8,17 @@ import SwiftUI
 struct InputBarVideoAttachmentView: View {
     let attachment: AddedMediaAsset
     let onDiscard: (String) -> Void
+    var onOpen: () -> Void = {}
 
     var body: some View {
-        InputBarImageAttachmentView(attachment: attachment, onDiscard: onDiscard)
-            .mediaBadgeOverlay {
-                InputBarVideoMediaBadge(durationText: formattedDuration)
-            }
+        InputBarImageAttachmentView(
+            attachment: attachment,
+            onDiscard: onDiscard,
+            onOpen: onOpen
+        )
+        .mediaBadgeOverlay {
+            InputBarVideoMediaBadge(durationText: formattedDuration)
+        }
     }
 
     private var formattedDuration: String {

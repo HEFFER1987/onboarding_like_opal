@@ -11,6 +11,9 @@ struct InputBarAttachmentsContainerView: View {
     var assets: [InputBarAsset]
     var onDiscardAttachment: (String) -> Void
 
+    @State private var mediaPreview: InputBarAttachmentPreview?
+    @State private var filePreview: FilePreviewItem?
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -36,6 +39,14 @@ struct InputBarAttachmentsContainerView: View {
                 }
             }
         }
+        .fullScreenCover(item: $mediaPreview) { preview in
+            if case .media(let mediaAssets, let selectedIndex) = preview {
+                InputBarMediaPreviewView(assets: mediaAssets, selectedIndex: selectedIndex)
+            }
+        }
+        .sheet(item: $filePreview) { item in
+            InputBarFilePreviewView(url: item.url)
+        }
     }
 
     private var displayedAssets: [InputBarAsset] {
@@ -55,12 +66,41 @@ struct InputBarAttachmentsContainerView: View {
         case .media(let attachment):
             switch attachment.type {
             case .video:
-                InputBarVideoAttachmentView(attachment: attachment, onDiscard: onDiscardAttachment)
+                InputBarVideoAttachmentView(
+                    attachment: attachment,
+                    onDiscard: onDiscardAttachment,
+                    onOpen: { openMediaPreview(for: attachment) }
+                )
             case .image:
-                InputBarImageAttachmentView(attachment: attachment, onDiscard: onDiscardAttachment)
+                InputBarImageAttachmentView(
+                    attachment: attachment,
+                    onDiscard: onDiscardAttachment,
+                    onOpen: { openMediaPreview(for: attachment) }
+                )
             }
         case .file(let url):
-            InputBarFileAttachmentView(url: url, onDiscard: onDiscardAttachment)
+            InputBarFileAttachmentView(
+                url: url,
+                onDiscard: onDiscardAttachment,
+                onOpen: { filePreview = FilePreviewItem(url: url) }
+            )
         }
+    }
+
+    private func openMediaPreview(for attachment: AddedMediaAsset) {
+        mediaPreview = InputBarAttachmentPreview.mediaPreview(
+            assets: assets,
+            tappedAsset: attachment
+        )
+    }
+}
+
+private struct FilePreviewItem: Identifiable {
+    let id: String
+    let url: URL
+
+    init(url: URL) {
+        self.url = url
+        id = url.absoluteString
     }
 }

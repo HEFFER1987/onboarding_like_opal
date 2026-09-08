@@ -15,11 +15,14 @@ struct InputBarView: View {
     var onSend: () -> Void
     @Binding var isFocused: Bool
 
-    @State private var emojiKeyboardTrigger = 0
+    @State private var showsKeyboardButton = false
+    @State private var keyboardModeTrigger = 0
+    @State private var pendingEmojiKeyboard = false
+    @State private var isKeyboardSwitching = false
 
     private let barHeight: CGFloat = 36
     private let actionButtonSize: CGFloat = 36
-    private let sendBlue = Color(red: 0.14, green: 0.52, blue: 0.98)
+    private let actionFill = Color.white.opacity(0.85)
 
     private var showsSend: Bool {
         !text.isEmpty || viewModel.hasPendingAttachments
@@ -108,7 +111,9 @@ struct InputBarView: View {
                 keyboardType: keyboardType,
                 isFocused: $isFocused,
                 isEnabled: isInteractionEnabled,
-                emojiKeyboardTrigger: emojiKeyboardTrigger,
+                switchToEmojiKeyboard: pendingEmojiKeyboard,
+                keyboardModeTrigger: keyboardModeTrigger,
+                isKeyboardSwitching: $isKeyboardSwitching,
                 onSubmit: {
                     guard isSendEnabled else { return }
                     onSend()
@@ -130,17 +135,34 @@ struct InputBarView: View {
         Button {
             guard isInteractionEnabled else { return }
             isFocused = true
-            emojiKeyboardTrigger += 1
+            isKeyboardSwitching = true
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showsKeyboardButton.toggle()
+            }
+
+            pendingEmojiKeyboard = showsKeyboardButton
+            keyboardModeTrigger += 1
         } label: {
-            Image(systemName: "face.smiling")
-                .font(.system(size: 22, weight: .regular))
-                .foregroundStyle(.white.opacity(0.9))
-                .frame(width: 36, height: barHeight)
-                .contentShape(Rectangle())
+            ZStack {
+                Image(systemName: "face.smiling")
+                    .font(.system(size: 22, weight: .regular))
+                    .opacity(showsKeyboardButton ? 0 : 1)
+
+                Image(systemName: "keyboard")
+                    .font(.system(size: 20, weight: .regular))
+                    .opacity(showsKeyboardButton ? 1 : 0)
+            }
+            .foregroundStyle(.white.opacity(0.9))
+            .frame(width: 36, height: barHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!isInteractionEnabled)
-        .accessibilityLabel("Emoji")
+        .accessibilityLabel(showsKeyboardButton ? "Keyboard" : "Emoji")
+        .transaction { $0.animation = nil }
     }
 
     private var attachButton: some View {
@@ -224,11 +246,11 @@ struct InputBarView: View {
         } label: {
             Image(systemName: "arrow.up")
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(isSendEnabled ? .black : .black.opacity(0.35))
                 .frame(width: actionButtonSize, height: actionButtonSize)
                 .background(
                     Circle()
-                        .fill(isSendEnabled ? sendBlue : sendBlue.opacity(0.35))
+                        .fill(isSendEnabled ? actionFill : actionFill.opacity(0.35))
                 )
         }
         .buttonStyle(.plain)

@@ -41,13 +41,21 @@ final class InputBarViewModel: ChatInputBarController {
     var cameraPickerShown = false
     var filePickerShown = false
     var recordingSnackBarText: String?
+    var isLocationSheetPresented = false
 
     let config: InputBarFeatureConfig
+    let locationPickerViewModel = LocationPickerViewModel()
     let voiceRecordingService = VoiceRecordingService()
     let voicePlayback = VoiceRecordingPlaybackService()
 
     init(config: InputBarFeatureConfig) {
         self.config = config
+        locationPickerViewModel.onRequestSheetExpansion = { [weak self] in
+            self?.presentLocationSheet()
+        }
+        locationPickerViewModel.onRequestSheetCollapse = { [weak self] in
+            self?.dismissLocationSheet()
+        }
     }
 
     var hasPendingAttachments: Bool {
@@ -92,19 +100,38 @@ final class InputBarViewModel: ChatInputBarController {
             }
         case .attachmentPicker:
             pickerOverlay = .hidden
+            if !isLocationSheetPresented {
+                locationPickerViewModel.onDisappear()
+            }
         }
     }
 
     func setPickerTab(_ tab: AttachmentPickerTab) {
         guard config.availableAttachmentTabs.contains(tab) else { return }
+        let previousTab = selectedPickerTab
         pickerOverlay = .attachmentPicker(tab)
+
+        if previousTab == .location, tab != .location, !isLocationSheetPresented {
+            locationPickerViewModel.onDisappear()
+        }
         if tab == .photos {
             askForPhotosPermission()
         }
     }
 
+    func presentLocationSheet() {
+        isLocationSheetPresented = true
+    }
+
+    func dismissLocationSheet() {
+        isLocationSheetPresented = false
+    }
+
     func hidePicker() {
         pickerOverlay = .hidden
+        if !isLocationSheetPresented {
+            locationPickerViewModel.onDisappear()
+        }
     }
 
     func updateKeyboardHeight(_ height: CGFloat) {
@@ -162,6 +189,7 @@ final class InputBarViewModel: ChatInputBarController {
 
     func setLocation(_ location: InputBarLocation) {
         pendingLocation = location
+        dismissLocationSheet()
         hidePicker()
     }
 

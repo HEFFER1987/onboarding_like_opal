@@ -8,32 +8,37 @@ import SwiftUI
 struct InputBarFileAttachmentView: View {
     let url: URL
     let onDiscard: (String) -> Void
+    var onOpen: () -> Void = {}
 
     var body: some View {
-        HStack(spacing: 10) {
-            fileIcon
-            VStack(alignment: .leading, spacing: 2) {
-                Text(url.lastPathComponent)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                    .foregroundStyle(.white)
-                Text(url.composerFileSizeString)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .foregroundStyle(.white.opacity(0.55))
+        Button(action: onOpen) {
+            HStack(spacing: 10) {
+                fileIcon
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(url.lastPathComponent)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                        .foregroundStyle(.white)
+                    Text(url.composerFileSizeString)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(width: 260)
+            .background(Color.white.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+            )
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(width: 260)
-        .background(Color.white.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-        )
+        .buttonStyle(.plain)
         .id(url.absoluteString)
+        .accessibilityLabel("Open file")
         .dismissButtonOverlay {
             onDiscard(url.absoluteString)
         }

@@ -123,7 +123,7 @@ struct VoiceRecordingInputView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 48, height: 48)
-                    .background(Circle().fill(Color(red: 0.14, green: 0.52, blue: 0.98)))
+                    .background(Circle().fill(Color.white.opacity(0.85)))
             }
             .buttonStyle(.plain)
         }
