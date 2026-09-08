@@ -123,7 +123,7 @@ struct OnboardingView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 inputSection
                     .padding(.horizontal, 16)
-                    .padding(.top, 12)
+                    .padding(.top, 4)
                     .padding(.bottom, 12)
                     .background(Color.black)
                     .background {
@@ -192,8 +192,11 @@ struct OnboardingView: View {
         GeometryReader { geometry in
             let visibleHeight = visibleConversationHeight(geometry.size.height)
             let blurZoneHeight = ChatDepthStyle.blurZoneHeight(viewportHeight: visibleHeight)
+            let bottomFadeHeight = ChatDepthStyle.bottomFadeHeight(viewportHeight: visibleHeight)
 
             VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 28) {
@@ -246,13 +249,14 @@ struct OnboardingView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: visibleHeight, alignment: .bottom)
                     .padding(.horizontal, 32)
-                    .padding(.vertical, 8)
+                    .padding(.top, 8)
                     .coordinateSpace(name: "conversationScroll")
                 }
                 .onPreferenceChange(MessageFramesPreferenceKey.self) { frames in
                     messageFrames = frames
                 }
                 .frame(height: visibleHeight, alignment: .top)
+                .bottomEdgeFadeMask(fadeHeight: bottomFadeHeight)
                 .scrollBounceBehavior(.basedOnSize)
                 .onScrollGeometryChange(for: ScrollSnapshot.self) { geometry in
                     let distanceFromBottom = geometry.contentSize.height
@@ -294,8 +298,6 @@ struct OnboardingView: View {
                     )
                 }
                 }
-
-                Spacer(minLength: 0)
             }
         }
     }
@@ -325,17 +327,7 @@ struct OnboardingView: View {
 
             let scroll = {
                 let targetMessage = activeBotMessage ?? messages.last
-                let anchor: UnitPoint
-                if let targetMessage {
-                    anchor = scrollAnchor(
-                        for: targetMessage.text,
-                        viewportHeight: viewportHeight,
-                        viewportWidth: viewportWidth,
-                        isTyping: targetMessage.role == .bot && !targetMessage.isTypingComplete
-                    )
-                } else {
-                    anchor = .bottom
-                }
+                let anchor = ChatDepthStyle.bottomScrollAnchor(viewportHeight: viewportHeight)
 
                 if let targetMessage {
                     proxy.scrollTo(
@@ -343,7 +335,10 @@ struct OnboardingView: View {
                         anchor: anchor
                     )
                 } else {
-                    proxy.scrollTo(ConversationScrollTarget.bottom, anchor: .bottom)
+                    proxy.scrollTo(
+                        ConversationScrollTarget.bottom,
+                        anchor: anchor
+                    )
                 }
             }
 
@@ -371,25 +366,6 @@ struct OnboardingView: View {
             screenHeight - keyboardHeight - inputSectionHeight - topInset
         )
         return min(measuredHeight, maxHeight)
-    }
-
-    private func scrollAnchor(
-        for text: String,
-        viewportHeight: CGFloat,
-        viewportWidth: CGFloat,
-        isTyping: Bool
-    ) -> UnitPoint {
-        let estimatedLineHeight: CGFloat = 28
-        let horizontalPadding: CGFloat = 64
-        let contentWidth = max(1, viewportWidth - horizontalPadding)
-        let charsPerLine = max(1, Int(contentWidth / 12))
-        let lineCount = max(1, Int(ceil(Double(text.count) / Double(charsPerLine))))
-        let estimatedHeight = CGFloat(lineCount) * estimatedLineHeight
-
-        if isTyping && estimatedHeight > viewportHeight * 0.45 {
-            return .top
-        }
-        return .bottom
     }
 
     private func startConversation() {

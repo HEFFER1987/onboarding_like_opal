@@ -45,6 +45,18 @@ enum ChatDepthStyle {
     static let minTextOpacity: CGFloat = 0.6
     static let defaultFocusRatio: CGFloat = 0.72
     static let blurFalloffRatio: CGFloat = 0.55
+    static let bottomFadeRatio: CGFloat = 0.07
+
+    static func bottomFadeHeight(viewportHeight: CGFloat) -> CGFloat {
+        guard viewportHeight > 0 else { return 0 }
+        return viewportHeight * bottomFadeRatio
+    }
+
+    static func bottomScrollAnchor(viewportHeight: CGFloat) -> UnitPoint {
+        guard viewportHeight > 0 else { return .bottom }
+        let fadeRatio = bottomFadeHeight(viewportHeight: viewportHeight) / viewportHeight
+        return UnitPoint(x: 0.5, y: 1.0 - fadeRatio)
+    }
 
     struct Appearance: Equatable {
         let blurRadius: CGFloat
@@ -121,6 +133,20 @@ enum ChatDepthStyle {
 }
 
 extension View {
+    func bottomEdgeFadeMask(fadeHeight: CGFloat) -> some View {
+        mask {
+            VStack(spacing: 0) {
+                Rectangle()
+                LinearGradient(
+                    colors: [.black, .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: max(0, fadeHeight))
+            }
+        }
+    }
+
     func chatMessageTransition() -> some View {
         transition(
             .asymmetric(
