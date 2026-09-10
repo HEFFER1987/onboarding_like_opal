@@ -76,14 +76,9 @@ struct VoiceRecordingInputView: View {
     }
 
     private var activeRecordingTrailing: some View {
-        HStack(spacing: 0) {
-            slideToCancel
-                .opacity(opacityForSlideToCancel)
-
-            Spacer()
-
-            recordingPauseButton
-        }
+        slideToCancel
+            .opacity(opacityForSlideToCancel)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var recordingPauseButton: some View {
