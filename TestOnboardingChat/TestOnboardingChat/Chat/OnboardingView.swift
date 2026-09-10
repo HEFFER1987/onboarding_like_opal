@@ -53,9 +53,9 @@ struct OnboardingView: View {
     @State private var scrollContentOffset: CGFloat = 0
     @State private var messageFrames: [UUID: CGRect] = [:]
 
-    init(inputBarFactory: any ChatInputBarFactory = InputBarFactory()) {
-        self.inputBarFactory = inputBarFactory
-        _inputController = State(initialValue: inputBarFactory.makeController())
+    init(inputBarFactory: (any ChatInputBarFactory)? = nil) {
+        self.inputBarFactory = inputBarFactory ?? InputBarFactory()
+        _inputController = State(initialValue: self.inputBarFactory.makeController())
     }
 
     private var trimmedInput: String {
@@ -67,7 +67,12 @@ struct OnboardingView: View {
     }
 
     private var canSubmit: Bool {
-        !trimmedInput.isEmpty && !isBotTyping && inputStep != .none
+        guard !isBotTyping && inputStep != .none else { return false }
+        return !trimmedInput.isEmpty || inputController.hasSubmittableAttachments
+    }
+
+    private var isVoiceRecordingActive: Bool {
+        inputController.isVoiceRecordingActive
     }
 
     private var placeholder: String {
@@ -161,7 +166,7 @@ struct OnboardingView: View {
         }
         .onAppear(perform: startConversation)
         .onChange(of: isFieldFocused) { _, isFocused in
-            if !isFocused {
+            if !isFocused && !isVoiceRecordingActive {
                 keyboardHeight = 0
             }
         }
@@ -172,9 +177,8 @@ struct OnboardingView: View {
             let screenHeight = UIScreen.main.bounds.height
             let nextHeight = max(0, screenHeight - frame.minY)
 
-            // iOS 18 can emit a transient keyboard-dismiss frame while the field stays focused.
-            // Keep keyboard height stable while the bot is typing so the layout doesn't jump.
-            if nextHeight == 0 && (isFieldFocused || isBotTyping) {
+            // Keep keyboard inset stable while recording, typing, or during transient iOS dismiss frames.
+            if nextHeight == 0 && (isFieldFocused || isBotTyping || isVoiceRecordingActive) {
                 return
             }
 
@@ -450,9 +454,20 @@ struct OnboardingView: View {
     private func submitAnswer() {
         guard canSubmit else { return }
 
+        let answer: String
+        if !trimmedInput.isEmpty {
+            answer = trimmedInput
+        } else if let voiceSummary = inputController.voiceSubmissionSummary() {
+            answer = voiceSummary
+        } else {
+            return
+        }
+
+        inputController.clearSubmittedAttachments()
+
         switch inputStep {
         case .name:
-            let name = trimmedInput
+            let name = answer
             appendUserMessageThen("Hi, \(name).") {
                 startBotTyping(
                     "I'm going to ask you a few questions. No need to overthink it. Then I'll build your setup"
@@ -462,13 +477,13 @@ struct OnboardingView: View {
             }
 
         case .followUp(let index):
-            appendUserMessageThen(trimmedInput) {
+            appendUserMessageThen(answer) {
                 let nextIndex = index + 1
                 if nextIndex < followUpQuestions.count {
                     askFollowUpQuestion(at: nextIndex)
                 } else {
                     inputStep = .none
-                    finishConversation(userName: messages.first(where: { $0.role == .user })?.text ?? trimmedInput)
+                    finishConversation(userName: messages.first(where: { $0.role == .user })?.text ?? answer)
                 }
             }
 

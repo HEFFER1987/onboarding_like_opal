@@ -8,6 +8,10 @@ import SwiftUI
 protocol ChatInputBarController: AnyObject {
     func updateKeyboardHeight(_ height: CGFloat)
     func reset()
+    var hasSubmittableAttachments: Bool { get }
+    var isVoiceRecordingActive: Bool { get }
+    func voiceSubmissionSummary() -> String?
+    func clearSubmittedAttachments()
 }
 
 protocol ChatInputBarFactory {

@@ -44,6 +44,9 @@ struct InputBarContainer: View {
             ),
             onKeyboardShown: {
                 viewModel.hidePicker()
+            },
+            shouldPreserveKeyboardHeight: {
+                viewModel.isVoiceRecordingActive
             }
         )
         .alert("File too large", isPresented: Binding(

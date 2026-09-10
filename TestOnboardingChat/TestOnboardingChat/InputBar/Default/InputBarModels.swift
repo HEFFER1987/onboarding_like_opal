@@ -169,4 +169,8 @@ struct AudioRecordingInfo: Equatable, Sendable {
         waveform.append(entry)
         self.duration = duration
     }
+
+    mutating func updateDuration(_ duration: TimeInterval) {
+        self.duration = duration
+    }
 }

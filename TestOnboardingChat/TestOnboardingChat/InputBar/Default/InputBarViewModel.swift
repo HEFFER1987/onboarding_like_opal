@@ -24,8 +24,12 @@ final class InputBarViewModel: ChatInputBarController {
         didSet {
             guard recordingState.isRecording else { return }
             if recordingGestureLocation.y < VoiceRecordingConstants.lockMaxDistance {
-                recordingState = .locked
-                recordingGestureLocation = .zero
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    recordingState = .locked
+                    recordingGestureLocation = .zero
+                }
             } else if recordingGestureLocation.x < VoiceRecordingConstants.cancelMaxDistance {
                 audioRecordingInfo = .initial
                 recordingState = .initial
@@ -42,6 +46,9 @@ final class InputBarViewModel: ChatInputBarController {
     var filePickerShown = false
     var recordingSnackBarText: String?
     var isLocationSheetPresented = false
+    var shouldSendOnRecordingFinish = false
+    var isRecordingPaused = false
+    var onVoiceRecordingAutoSend: (() -> Void)?
 
     let config: InputBarFeatureConfig
     let locationPickerViewModel = LocationPickerViewModel()
@@ -216,6 +223,7 @@ final class InputBarViewModel: ChatInputBarController {
 
     func clearAll() {
         voicePlayback.stop()
+        voiceRecordingService.cancelRecording()
         pendingAssets = []
         pendingVoiceRecordings = []
         pendingLocation = nil
@@ -223,11 +231,45 @@ final class InputBarViewModel: ChatInputBarController {
         pendingAudioRecording = nil
         recordingState = .initial
         recordingGestureLocation = .zero
+        isRecordingPaused = false
         hidePicker()
     }
 
     func reset() {
         clearAll()
+    }
+
+    var hasSubmittableAttachments: Bool {
+        !pendingVoiceRecordings.isEmpty
+    }
+
+    var isVoiceRecordingActive: Bool {
+        recordingState != .initial
+    }
+
+    func voiceSubmissionSummary() -> String? {
+        guard !pendingVoiceRecordings.isEmpty else { return nil }
+        if pendingVoiceRecordings.count == 1 {
+            return "Voice message (\(formattedVoiceDuration(pendingVoiceRecordings[0].duration)))"
+        }
+        return "\(pendingVoiceRecordings.count) voice messages"
+    }
+
+    func clearSubmittedAttachments() {
+        voicePlayback.stop()
+        pendingVoiceRecordings = []
+        pendingAudioRecording = nil
+        audioRecordingInfo = .initial
+        isRecordingPaused = false
+        if recordingState == .stopped {
+            recordingState = .initial
+        }
+    }
+
+    private func formattedVoiceDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 
     func isAssetSelected(id: String) -> Bool {

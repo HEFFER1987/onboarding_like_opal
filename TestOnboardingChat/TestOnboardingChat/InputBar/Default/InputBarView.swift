@@ -21,8 +21,14 @@ struct InputBarView: View {
     @State private var isKeyboardSwitching = false
 
     private let barHeight: CGFloat = 36
+    private let inputAreaHeight: CGFloat = 48
     private let actionButtonSize: CGFloat = 36
+    private let trailingActionOffset: CGFloat = 6
     private let actionFill = Color.white.opacity(0.85)
+
+    private var showsRecordingControlRow: Bool {
+        viewModel.recordingState.isLockedOrStopped
+    }
 
     private var showsSend: Bool {
         !text.isEmpty || viewModel.hasPendingAttachments
@@ -58,15 +64,18 @@ struct InputBarView: View {
             }
 
             HStack(alignment: .bottom, spacing: 8) {
-                if viewModel.config.isAttachmentButtonVisible {
+                if viewModel.config.isAttachmentButtonVisible && viewModel.recordingState.showsTextInput {
                     attachButton
                 }
 
                 inputArea
                     .frame(maxWidth: .infinity)
 
-                trailingActionSlot
-                    .frame(width: actionButtonSize, height: actionButtonSize)
+                if !showsRecordingControlRow {
+                    trailingActionSlot
+                        .frame(width: actionButtonSize, height: actionButtonSize)
+                        .offset(x: trailingActionOffset)
+                }
             }
         }
         .overlay {
@@ -80,27 +89,42 @@ struct InputBarView: View {
             .transaction { $0.animation = nil }
         }
         .animation(.easeInOut(duration: 0.2), value: showsSend)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.recordingState.showsTextInput)
     }
 
     // MARK: - Input Area
 
-    @ViewBuilder
+    private var showsTextInput: Bool {
+        viewModel.recordingState.showsTextInput
+    }
+
     private var inputArea: some View {
-        if viewModel.recordingState.showsTextInput {
+        ZStack(alignment: .leading) {
             inputCapsule
-        } else {
-            VoiceRecordingInputView(
-                recordingState: viewModel.recordingState,
-                audioRecordingInfo: viewModel.audioRecordingInfo,
-                pendingAudioRecordingURL: viewModel.pendingAudioRecording?.url,
-                gestureLocation: viewModel.recordingGestureLocation,
-                stopRecording: { viewModel.stopRecording() },
-                confirmRecording: { viewModel.confirmRecording() },
-                discardRecording: { viewModel.discardRecording() },
-                previewRecording: { viewModel.previewRecording() }
-            )
+                .opacity(showsTextInput ? 1 : 0)
+                .allowsHitTesting(showsTextInput)
+                .accessibilityHidden(!showsTextInput)
+
+            voiceRecordingInput
+                .opacity(showsTextInput ? 0 : 1)
+                .allowsHitTesting(!showsTextInput)
+                .accessibilityHidden(showsTextInput)
         }
+        .frame(minHeight: inputAreaHeight)
+        .animation(nil, value: showsTextInput)
+    }
+
+    private var voiceRecordingInput: some View {
+        VoiceRecordingInputView(
+            recordingState: viewModel.recordingState,
+            isRecordingPaused: viewModel.isRecordingPaused,
+            audioRecordingInfo: viewModel.audioRecordingInfo,
+            pendingAudioRecordingURL: viewModel.pendingAudioRecording?.url,
+            gestureLocation: viewModel.recordingGestureLocation,
+            playback: viewModel.voicePlayback,
+            toggleRecordingPause: { viewModel.toggleRecordingPause() },
+            confirmRecording: { viewModel.confirmRecording() },
+            discardRecording: { viewModel.discardRecording() }
+        )
     }
 
     private var inputCapsule: some View {
@@ -124,7 +148,7 @@ struct InputBarView: View {
 
             emojiButton
         }
-        .frame(minHeight: barHeight)
+        .frame(height: inputAreaHeight)
         .background(
             Capsule()
                 .fill(Color.white.opacity(0.12))
@@ -271,7 +295,7 @@ struct InputBarView: View {
                 )
                 .offset(y: viewModel.recordingState.isLockedOrStopped ? -80 : lockViewOffset)
             }
-            .padding(.trailing, 16)
+            .padding(.trailing, 0)
             .transition(.opacity)
         }
     }

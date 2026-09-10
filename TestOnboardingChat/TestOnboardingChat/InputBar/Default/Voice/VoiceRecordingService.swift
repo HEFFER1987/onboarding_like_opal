@@ -8,7 +8,7 @@ import Foundation
 
 @MainActor
 final class VoiceRecordingService {
-    var onMeteringUpdate: ((Float, TimeInterval) -> Void)?
+    var onMeteringUpdate: ((Float?, TimeInterval) -> Void)?
     var onFinish: ((URL, TimeInterval, [Float]) -> Void)?
     var onError: (() -> Void)?
 
@@ -16,11 +16,24 @@ final class VoiceRecordingService {
     private var meterTimer: Timer?
     private var waveformSamples: [Float] = []
     private var recordingURL: URL?
+    private var pendingMeterLevels: [Float] = []
+    private var lastBarAddedAt: TimeInterval = 0
+
+    private let meterTickInterval: TimeInterval = 0.05
+    private let barCaptureInterval: TimeInterval = 0.12
 
     private var isPreparingRecording = false
 
     var isRecording: Bool {
         recorder?.isRecording == true
+    }
+
+    var hasActiveSession: Bool {
+        recordingURL != nil
+    }
+
+    var isPaused: Bool {
+        hasActiveSession && recorder?.isRecording == false
     }
 
     func startRecording() {
@@ -55,6 +68,8 @@ final class VoiceRecordingService {
             .appendingPathExtension("m4a")
         recordingURL = url
         waveformSamples = []
+        pendingMeterLevels = []
+        lastBarAddedAt = 0
 
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
@@ -71,6 +86,22 @@ final class VoiceRecordingService {
         } catch {
             onError?()
         }
+    }
+
+    func pauseRecording() {
+        guard let recorder, recorder.isRecording else { return }
+        meterTimer?.invalidate()
+        meterTimer = nil
+        pendingMeterLevels = []
+        recorder.pause()
+    }
+
+    func resumeRecording() {
+        guard let recorder, hasActiveSession, !recorder.isRecording else { return }
+        pendingMeterLevels = []
+        lastBarAddedAt = recorder.currentTime
+        recorder.record()
+        startMetering()
     }
 
     func stopRecording() {
@@ -90,6 +121,7 @@ final class VoiceRecordingService {
     func cancelRecording() {
         meterTimer?.invalidate()
         meterTimer = nil
+        isPreparingRecording = false
         recorder?.stop()
         if let url = recordingURL {
             try? FileManager.default.removeItem(at: url)
@@ -97,10 +129,12 @@ final class VoiceRecordingService {
         recorder = nil
         recordingURL = nil
         waveformSamples = []
+        pendingMeterLevels = []
+        lastBarAddedAt = 0
     }
 
     private func startMetering() {
-        meterTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+        meterTimer = Timer.scheduledTimer(withTimeInterval: meterTickInterval, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
                 self.updateMeters()
@@ -111,9 +145,33 @@ final class VoiceRecordingService {
     private func updateMeters() {
         guard let recorder else { return }
         recorder.updateMeters()
-        let power = recorder.averagePower(forChannel: 0)
-        let normalized = max(0.05, (power + 50) / 50)
-        waveformSamples.append(normalized)
-        onMeteringUpdate?(normalized, recorder.currentTime)
+        let currentTime = recorder.currentTime
+        let average = recorder.averagePower(forChannel: 0)
+        let peak = recorder.peakPower(forChannel: 0)
+        let power = max(average, peak)
+        let normalized = normalizedMeterLevel(power: power)
+
+        pendingMeterLevels.append(normalized)
+
+        let shouldAddBar = lastBarAddedAt == 0
+            || currentTime - lastBarAddedAt >= barCaptureInterval
+
+        if shouldAddBar {
+            let level = pendingMeterLevels.max() ?? normalized
+            waveformSamples.append(level)
+            pendingMeterLevels.removeAll(keepingCapacity: true)
+            lastBarAddedAt = currentTime
+            onMeteringUpdate?(level, currentTime)
+        } else {
+            onMeteringUpdate?(nil, currentTime)
+        }
+    }
+
+    private func normalizedMeterLevel(power: Float) -> Float {
+        let minDb: Float = -55
+        let maxDb: Float = -5
+        let clamped = min(max(power, minDb), maxDb)
+        let linear = (clamped - minDb) / (maxDb - minDb)
+        return max(0.08, powf(linear, 0.65))
     }
 }

@@ -41,6 +41,7 @@ extension KeyboardReadable {
 struct KeyboardHeightObserver: ViewModifier, KeyboardReadable {
     @Binding var keyboardHeight: CGFloat
     var onKeyboardShown: (() -> Void)?
+    var shouldPreserveKeyboardHeight: () -> Bool = { false }
 
     func body(content: Content) -> some View {
         content
@@ -52,7 +53,7 @@ struct KeyboardHeightObserver: ViewModifier, KeyboardReadable {
             .onReceive(keyboardWillChangePublisher) { shown in
                 if shown {
                     onKeyboardShown?()
-                } else {
+                } else if !shouldPreserveKeyboardHeight() {
                     keyboardHeight = 0
                 }
             }
@@ -62,8 +63,15 @@ struct KeyboardHeightObserver: ViewModifier, KeyboardReadable {
 extension View {
     func observeKeyboardHeight(
         _ height: Binding<CGFloat>,
-        onKeyboardShown: (() -> Void)? = nil
+        onKeyboardShown: (() -> Void)? = nil,
+        shouldPreserveKeyboardHeight: @escaping () -> Bool = { false }
     ) -> some View {
-        modifier(KeyboardHeightObserver(keyboardHeight: height, onKeyboardShown: onKeyboardShown))
+        modifier(
+            KeyboardHeightObserver(
+                keyboardHeight: height,
+                onKeyboardShown: onKeyboardShown,
+                shouldPreserveKeyboardHeight: shouldPreserveKeyboardHeight
+            )
+        )
     }
 }
